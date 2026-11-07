@@ -119,7 +119,9 @@ public:
             const auto duration = static_cast<Millis>(std::ceil(minutes_ * 60000));
             remaining = now - began_ >= duration ? 0 : duration - (now - began_);
         }
-        return {scope_, blocked_, scope_ == Scope::System || fresh(now), timed_, minutes_, remaining, ports_.size(), detectionError_};
+        std::set<std::uint16_t> uniquePorts;
+        for (const auto& binding : ports_) uniquePorts.insert(binding.port);
+        return {scope_, blocked_, scope_ == Scope::System || fresh(now), timed_, minutes_, remaining, uniquePorts.size(), detectionError_};
     }
 };
 } // namespace lag

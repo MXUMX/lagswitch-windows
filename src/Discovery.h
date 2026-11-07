@@ -1,5 +1,6 @@
 #pragma once
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <iphlpapi.h>
 #include <tlhelp32.h>
@@ -42,7 +43,7 @@ inline std::set<Binding> discover() {
             processes.emplace(entry.th32ProcessID, processIdentity(entry.th32ProcessID));
     } while (Process32NextW(snapshot.value, &entry));
     if (processes.empty()) throw std::runtime_error("Start GenshinImpact.exe or YuanShen.exe and enter the game to prepare UDP filtering.");
-    std::set<Binding> ports;
+    std::set<std::uint16_t> localPorts;
     for (bool v6 : {false, true}) {
         const ULONG family = v6 ? AF_INET6 : AF_INET;
         ULONG bytes{};
@@ -61,20 +62,24 @@ inline std::set<Binding> discover() {
             const auto* table = reinterpret_cast<const MIB_UDP6TABLE_OWNER_PID*>(storage.data());
             for (DWORD i = 0; i < table->dwNumEntries; ++i) if (processes.count(table->table[i].dwOwningPid)) {
                 const auto port = ntohs(static_cast<u_short>(table->table[i].dwLocalPort));
-                if (port) ports.insert({true, port});
+                if (port) localPorts.insert(port);
             }
         } else {
             const auto* table = reinterpret_cast<const MIB_UDPTABLE_OWNER_PID*>(storage.data());
             for (DWORD i = 0; i < table->dwNumEntries; ++i) if (processes.count(table->table[i].dwOwningPid)) {
                 const auto port = ntohs(static_cast<u_short>(table->table[i].dwLocalPort));
-                if (port) ports.insert({false, port});
+                if (port) localPorts.insert(port);
             }
         }
     }
     // Refuse recycled PIDs and processes replaced while tables were read.
     for (const auto& [pid, identity] : processes) if (processIdentity(pid) != identity)
         throw std::runtime_error("Genshin restarted during discovery. Waiting for the next scan.");
-    if (ports.empty()) throw std::runtime_error("Genshin has no bound UDP sockets yet. Enter the game and wait for READY.");
+    if (localPorts.empty()) throw std::runtime_error("Genshin has no bound UDP sockets yet. Enter the game and wait for READY.");
+    std::set<Binding> ports;
+    // A dual-stack IPv6 socket can also send IPv4 packets. The public UDP
+    // table doesn't expose IPV6_V6ONLY, so cover both families for each port.
+    for (auto port : localPorts) { ports.insert({false, port}); ports.insert({true, port}); }
     return ports;
 }
 } // namespace lag

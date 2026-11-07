@@ -91,10 +91,10 @@ public:
     }
     ~App() {
         stop_ = true; wait_.notify_all();
+        try { controller_.restore(); } catch (...) { filter_.close(); }
         if (watchdog_.joinable()) watchdog_.join();
         if (discovery_.joinable()) discovery_.join();
         if (window) { KillTimer(window, 1); UnregisterHotKey(window, hotkeyId_); WTSUnRegisterSessionNotification(window); }
-        try { controller_.restore(); } catch (...) { filter_.close(); }
         if (added_) Shell_NotifyIconW(NIM_DELETE, &tray_);
         for (auto image : {online_, scanning_, dropped_}) if (image) DestroyIcon(image);
         if (window && IsWindow(window)) DestroyWindow(window);
