@@ -1,0 +1,7 @@
+#pragma once
+#define IDD_SETTINGS 101
+#define IDC_GAME_ONLY 1001
+#define IDC_AUTO_RESTORE 1002
+#define IDC_MINUTES 1003
+#define IDC_SHORTCUT 1004
+#define IDC_DETECTION 1005
