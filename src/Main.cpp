@@ -116,6 +116,7 @@ class App {
     std::wstring lastTip_;
     UINT taskbarRestart_{RegisterWindowMessageW(L"TaskbarCreated")};
     int hotkeyId_{0x4C53};
+    bool nativeRegistered_{};
     bool added_{}, settingsOpen_{};
 public:
     HWND window{};
@@ -188,7 +189,7 @@ public:
         if (!window) winCheck(GetLastError(), "Create tray window");
         matcher_.set(prefs_.custom);
         if (prefs_.shortcut == 3) ensureKeyboardHook();
-        else if (!registerShortcut(prefs_.shortcut, hotkeyId_)) {
+        else if (!(nativeRegistered_ = registerShortcut(prefs_.shortcut, hotkeyId_))) {
             MessageBoxW(window, L"The saved shortcut is already in use. Use the tray menu to toggle, or choose another shortcut in Settings.", L"LagSwitch", MB_OK | MB_ICONWARNING);
         }
         tray_.cbSize = sizeof(tray_); tray_.hWnd = window; tray_.uID = 1;
@@ -282,14 +283,14 @@ public:
     void apply(const Preferences& next) {
         const int newId = hotkeyId_ == 0x4C53 ? 0x4C54 : 0x4C53;
         if (next.shortcut == 3 && !validSequence(next.custom)) throw std::runtime_error("Record a custom sequence first.");
-        const bool changed = next.shortcut != prefs_.shortcut;
+        const bool changed = next.shortcut != prefs_.shortcut || (next.shortcut != 3 && !nativeRegistered_);
         if (next.shortcut == 3) ensureKeyboardHook();
         if (changed && next.shortcut != 3 && !registerShortcut(next.shortcut, newId)) throw std::runtime_error("That shortcut is already in use. Choose another.");
         std::lock_guard<std::mutex> gate(operationGate_);
         requests_.clear();
         try { controller_.configure(next.scope, next.timed, next.minutes, GetTickCount64()); }
         catch (...) { if (changed && next.shortcut != 3) UnregisterHotKey(window, newId); throw; }
-        if (changed) { UnregisterHotKey(window, hotkeyId_); hotkeyId_ = newId; }
+        if (changed) { UnregisterHotKey(window, hotkeyId_); hotkeyId_ = newId; nativeRegistered_ = next.shortcut != 3; }
         prefs_ = next;
         matcher_.set(prefs_.custom); releaseKeyboardHookIfUnused();
         updateTray();

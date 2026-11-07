@@ -20,7 +20,7 @@ jobs:
       - name: Compile
         run: cmake --build build --config Release --parallel
       - name: Core and isolated Windows packet-filter tests
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: ctest --test-dir build -C Release --verbose --output-on-failure
       - name: Package portable app
         shell: pwsh
         run: |
