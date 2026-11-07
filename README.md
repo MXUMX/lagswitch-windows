@@ -1,4 +1,4 @@
-# LagSwitch for Windows 1.0
+# LagSwitch for Windows 1.1
 
 A portable notification-area app for temporary network packet drops. Genshin UDP filtering is selected by default, with an explicit system-wide option. Uses the Windows Filtering Platform (WFP) included with Windows; no extra driver, third-party firewall, subscription, .NET runtime, or developer certificate is required.
 
@@ -10,6 +10,16 @@ A portable notification-area app for temporary network packet drops. Genshin UDP
 4. Press **Ctrl+Alt+Numpad 1** to toggle drops. The icon turns red and the tooltip says **GI DROP**. Press the same shortcut again to restore traffic.
 
 Click or right-click LS for the toggle, Settings, and **Restore Traffic and Quit**. Settings offers **Ctrl+Alt+1** or **Ctrl+Shift+1** for keyboards without a numeric keypad. Numpad 1 requires Num Lock on. A conflicting shortcut is reported; the menu remains usable. This is a standard global Windows hotkey, so it does not require injecting code into Genshin.
+
+Version 1.1 adds a custom shortcut recorder and handles rapid taps through a bounded worker queue. The first request starts immediately; while a firewall change is running, two additional taps cancel each other and one extra tap remains pending. This preserves toggle parity without a long queue of outdated changes. Holding a shortcut does not autorepeat. No fixed debounce delay is added. Scope changes, explicit restoration, and shutdown discard waiting toggles.
+
+## Record a custom shortcut or sequence
+
+In **Settings**, click **Record…**, press one to four keys/chords, then click **Use Sequence** and **Save**. For example: `Ctrl+K`, then `Ctrl+L`. Use **Clear** to start over. During use, press the strokes in order with no more than one second between them. The final stroke triggers immediately; the app does not wait for that timeout. An unrelated key resets an incomplete sequence. Keyboard input is captured only while the recording dialog is focused, and the dialog buttons are operated with the mouse during recording.
+
+Custom sequences use a lightweight Windows keyboard listener. It is removed when a built-in shortcut is selected. The listener never performs firewall commands itself: it submits a toggle to the worker. During normal use, custom keys continue to the focused application, so they may also perform their usual game/app actions. Choose a sequence you do not otherwise use. OS-reserved combinations and the Windows secure desktop are outside the listener's control. This feature records a **toggle trigger**, not timed network-action playback or a typing macro.
+
+Only the explicitly selected key codes and modifiers are saved in the local settings. The app does not save a keyboard history or upload input. The shortcut recorder and input monitoring are separate from the UDP filter and do not inspect game memory.
 
 The executable is unsigned and has no SmartScreen reputation. Windows may show an unknown-publisher warning. No signing certificate was purchased. Use the source/Actions build and SHA-256 to identify the download; do not disable Windows security features to run it.
 
@@ -47,6 +57,6 @@ Output: `dist\LagSwitch.exe`. The C++ runtime is statically linked. `-SkipTests`
 
 Portable core tests cover default scope, IPv4/IPv6 filter plans, cache freshness, failure handling, frozen active rules, decimal-minute input, timer changes, watchdog recovery, and concurrent discovery updates. Windows integration tests use only dynamically allocated **loopback UDP test ports**, never a system-wide test block. They establish real UDP flows, check drops in both directions, verify unrelated ports remain available, restore the same sockets, check production loopback exclusions, and force-terminate a child to verify dynamic-session cleanup. These tests require elevation and run on the Windows Actions runner. They do not require Genshin or send traffic to a game server.
 
-The tray interface, global shortcut in Genshin, suspend/session events, VPN compatibility, and real gameplay still require hands-on Windows testing.
+Version 1.0 has been reported working in Genshin on Windows. The new recorder/listener and rapid-input behavior still need hands-on testing on your PC; automated tests cover matching, timeout/restart/overlapping sequences, saved-sequence validation, burst coalescing, and rapid real WFP changes. Suspend/session events and VPN compatibility still require hands-on testing.
 
 Implementation references: Microsoft's [WFP layer conditions](https://learn.microsoft.com/en-us/windows/win32/fwp/filtering-conditions-available-at-each-filtering-layer), [dynamic-session cleanup](https://learn.microsoft.com/en-us/windows/win32/api/fwpmu/nf-fwpmu-fwpmengineopen0), and [UDP table API](https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedudptable).

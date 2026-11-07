@@ -64,6 +64,10 @@ void familyTest(bool v6) {
         check(delivered(unrelated, unrelatedServer), "Unrelated UDP port remains available");
         filter.restore();
         check(delivered(game, server) && delivered(server, game), "Removing rules restores both directions");
+        const auto started = GetTickCount64();
+        for (int i = 0; i < 50; ++i) { filter.block(probeRules(v6, game.port)); filter.restore(); }
+        check(delivered(game, server) && delivered(server, game), "100 rapid real filter changes restore the established flow");
+        std::cout << "100 " << (v6 ? "IPv6" : "IPv4") << " WFP changes: " << GetTickCount64() - started << " ms total (API timing, not shortcut latency).\n";
         filter.block(probeRules(v6, game.port));
     }
     check(delivered(game, server), "Closing dynamic session removes filters");

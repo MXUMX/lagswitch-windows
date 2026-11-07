@@ -74,9 +74,20 @@ class Controller {
     std::string detectionError_;
     static constexpr Millis cacheLifetime = 5000;
     bool fresh(Millis now) const { return !ports_.empty() && now >= observed_ && now - observed_ <= cacheLifetime; }
+    Status statusLocked(Millis now) const {
+        Millis remaining{};
+        if (blocked_ && timed_) {
+            const auto duration = static_cast<Millis>(std::ceil(minutes_ * 60000));
+            const auto elapsed = now >= began_ ? now - began_ : 0;
+            remaining = elapsed >= duration ? 0 : duration - elapsed;
+        }
+        std::set<std::uint16_t> uniquePorts;
+        for (const auto& binding : ports_) uniquePorts.insert(binding.port);
+        return {scope_, blocked_, scope_ == Scope::System || fresh(now), timed_, minutes_, remaining, uniquePorts.size(), detectionError_};
+    }
     void restoreLocked() { backend_.restore(); blocked_ = false; began_ = 0; }
     void due(Millis now) {
-        if (blocked_ && timed_ && now - began_ >= static_cast<Millis>(std::ceil(minutes_ * 60000))) restoreLocked();
+        if (blocked_ && timed_ && now >= began_ && now - began_ >= static_cast<Millis>(std::ceil(minutes_ * 60000))) restoreLocked();
     }
 public:
     explicit Controller(Backend& backend) : backend_(backend) {}
@@ -114,14 +125,13 @@ public:
     void restore() { std::lock_guard<std::mutex> guard(mutex_); restoreLocked(); }
     Status status(Millis now) const {
         std::lock_guard<std::mutex> guard(mutex_);
-        Millis remaining{};
-        if (blocked_ && timed_) {
-            const auto duration = static_cast<Millis>(std::ceil(minutes_ * 60000));
-            remaining = now - began_ >= duration ? 0 : duration - (now - began_);
-        }
-        std::set<std::uint16_t> uniquePorts;
-        for (const auto& binding : ports_) uniquePorts.insert(binding.port);
-        return {scope_, blocked_, scope_ == Scope::System || fresh(now), timed_, minutes_, remaining, uniquePorts.size(), detectionError_};
+        return statusLocked(now);
+    }
+    bool heartbeatAndStatus(Millis now, Status& result) {
+        std::unique_lock<std::mutex> guard(mutex_, std::try_to_lock);
+        if (!guard.owns_lock()) return false;
+        heartbeat_ = now; uiTimedOut_ = false;
+        result = statusLocked(now); return true;
     }
 };
 } // namespace lag
